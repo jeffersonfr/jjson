@@ -1,0 +1,14 @@
+prefix="@CMAKE_INSTALL_PREFIX@"
+exec_prefix="${prefix}"
+libdir="${prefix}/lib"
+includedir="${prefix}/include"
+
+Name: jjson
+Description: A json parser
+URL: https://github.com/me/jeffersonfr/jjson
+Version: 0.0.1
+Requires: @PKGCONF_REQ_PUB@
+Requires.private: @PKGCONF_REQ_PRIV@
+Cflags: -I"${includedir}" 
+Libs: 
+Libs.private:
