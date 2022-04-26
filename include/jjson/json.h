@@ -13,7 +13,6 @@
 namespace jjson {
 
   enum class JsonType {
-    Invalid,
     Null,
     Bool,
     Int,
@@ -251,13 +250,12 @@ namespace jjson {
 
             return result;
           } else {
-            std::istream::pos_type pos = is.tellg();
-            Json value = Json::parse(is);
+            std::optional<Json> valueOpt = Json::parse(is);
 
-            if (pos == is.tellg()) {
-              is.get(); // skip char if no byte was read
+            if (valueOpt) {
+              result.push_back(std::move(valueOpt.value()));
             } else {
-              result.push_back(std::move(value));
+              is.get(); // skip char if no byte was read
             }
           }
         }
@@ -294,13 +292,14 @@ namespace jjson {
               throw std::runtime_error("invalid object separator");
             }
             
-            std::istream::pos_type pos = is.tellg();
-            Json value = Json::parse(is);
+            std::optional<Json> valueOpt = Json::parse(is);
 
-            if (pos == is.tellg()) {
-              throw std::runtime_error("unable to find object value");
-            } else {
+            if (valueOpt) {
+              Json &value = valueOpt.value();
+
               result[key.get<std::string>().value()] = value;
+            } else {
+              throw std::runtime_error("unable to find object value");
             }
           }
         }
@@ -309,35 +308,37 @@ namespace jjson {
       }
 
     public:
-      static Json parse(std::istream &is) {
+      static std::optional<Json> parse(std::istream &is) {
         Json result;
 
         while (is) {
           int c = std::tolower(is.peek());
 
-          if (std::isspace(c)) {
-            _skip_space(is);
+          try {
+            if (std::isspace(c)) {
+              _skip_space(is);
 
-            continue;
-          } else if (c == -1) {
+              continue;
+            } else if (c == -1) {
+              return Json{};
+            } else if (c == 'n') { // 'n'ull
+              result = _read_null(is);
+            } else if (c == 'f' or c == 't') { // 'f'alse or 't'rue
+              result = _read_bool(is);
+            } else if (c == '+' or c == '-' or c == '.' or c == '0' or c == '1' or c == '2' or 
+                c == '3' or c == '4' or c == '5' or c == '6' or c == '7' or c == '8' or c == '9') {
+              result = _read_number(is); // 42, 0x2a, 018, 0b1010, 3.1415+4
+            } else if (c == '"') {
+              result = _read_string(is);
+            } else if (c == '[') {
+              result = _read_array(is);
+            } else if (c == '{') {
+              result = _read_object(is);
+            } else {
+              return {};
+            }
+          } catch (...) {
             return {};
-          } else if (c == 'n') { // 'n'ull
-            result = _read_null(is);
-          } else if (c == 'f' or c == 't') { // 'f'alse or 't'rue
-            result = _read_bool(is);
-          } else if (c == '+' or c == '-' or c == '.' or c == '0' or c == '1' or c == '2' or 
-              c == '3' or c == '4' or c == '5' or c == '6' or c == '7' or c == '8' or c == '9') {
-            result = _read_number(is); // 42, 0x2a, 018, 0b1010, 3.1415+4
-          } else if (c == '"') {
-            result = _read_string(is);
-          } else if (c == '[') {
-            result = _read_array(is);
-          } else if (c == '{') {
-            result = _read_object(is);
-          } else {
-            result.mValid = false;
-
-            return result;
           }
 
           break;
@@ -442,11 +443,11 @@ namespace jjson {
       }
 
       Json(Json const &value)
-        : mValue{value.mValue}, mValid{value.mValid} {
+        : mValue{value.mValue} {
       }
 
       Json(Json &&value)
-        : mValue{std::move(value.mValue)}, mValid{value.mValid} {
+        : mValue{std::move(value.mValue)} {
       }
 
       Json(std::initializer_list<std::pair<std::string, Json>> const &value)
@@ -462,10 +463,6 @@ namespace jjson {
         }
 
       JsonType get_type() const {
-        if (mValid == false) {
-          return JsonType::Invalid;
-        }
-
         if (std::holds_alternative<bool>(mValue) == true) {
           return JsonType::Bool;
         } else if (std::holds_alternative<int64_t>(mValue) == true) {
@@ -481,10 +478,6 @@ namespace jjson {
         }
 
         return JsonType::Null;
-      }
-
-      explicit operator bool () const {
-        return get_type() != JsonType::Invalid;
       }
 
       Json & operator = (std::nullptr_t value) {
@@ -561,14 +554,12 @@ namespace jjson {
 
       Json & operator = (Json const &value) {
         mValue = value.mValue;
-        mValid = value.mValid;
 
         return *this;
       }
 
       Json & operator = (Json &&value) {
         mValue = std::move(value.mValue);
-        mValid = value.mValid;
 
         return *this;
       }
@@ -748,10 +739,6 @@ namespace jjson {
         }
 
       std::string dump() const {
-        if (get_type() == JsonType::Invalid) {
-          return "<invalid>";
-        }
-
         std::ostringstream out;
 
         out << std::boolalpha;
@@ -764,8 +751,6 @@ namespace jjson {
       std::variant<std::nullptr_t, bool, int64_t, double, std::string, jArray, jObject> mValue;
 
     private:
-      bool mValid {true};
-
       friend bool operator == (Json const &lhs, Json const &rhs) {
         if (lhs.mValue.index() == rhs.mValue.index()) {
           if (std::holds_alternative<std::nullptr_t>(lhs.mValue) == true) {
@@ -799,9 +784,7 @@ namespace jjson {
       }
 
       void _dump(Json const &value, std::ostringstream &out) const {
-        if (value.get_type() == JsonType::Invalid) {
-          out << "<invalid>";
-        } else if (value.get_type() == JsonType::Null) {
+        if (value.get_type() == JsonType::Null) {
           out << "null";
         } else if (value.get_type() == JsonType::Bool) {
           out << value.get_or_throw<bool>();

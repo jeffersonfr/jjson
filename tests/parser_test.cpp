@@ -114,9 +114,29 @@ TEST(ChannelSuite, PrimitiveTypes) {
   
   ASSERT_EQ(Json{}.get<std::nullptr_t>(), nullptr);
   ASSERT_EQ(Json{true}.get<bool>(), true);
-  //ASSERT_EQ(Json{42}.get<int>(), 42);
-  //ASSERT_EQ(Json{1.2f}.get<float>(), 1.2f);
+  ASSERT_EQ(Json{42}.get<int>(), 42);
+  ASSERT_EQ(Json{1.2f}.get<float>(), 1.2f);
   ASSERT_EQ((*Json{jArray{1, 2, 3, 4, 5}}.get<jArray>()).size(), 5);
+}
+
+TEST(ChannelSuite, PrimitiveOptional) {
+  std::optional<Json> j1{nullptr};
+  std::optional<Json> j2{true};
+  std::optional<Json> j3{42};
+  std::optional<Json> j4{3.14};
+  std::optional<Json> j5{"Hello, world !"};
+  std::optional<Json> j6{jArray{
+    nullptr, true, 42, 3.14}};
+  std::optional<Json> j7{jObject{
+    {"key1", "value1"}}};
+
+  ASSERT_EQ(j1.value(), JsonType::Null);
+  ASSERT_EQ(j2.value(), JsonType::Bool);
+  ASSERT_EQ(j3.value(), JsonType::Int);
+  ASSERT_EQ(j4.value(), JsonType::Float);
+  ASSERT_EQ(j5.value(), JsonType::String);
+  ASSERT_EQ(j6.value(), JsonType::Array);
+  ASSERT_EQ(j7.value(), JsonType::Object);
 }
 
 TEST(ChannelSuite, CustomTypes) {
@@ -176,36 +196,36 @@ TEST(ChannelSuite, ParseFormated) {
   std::istringstream s29{"{\"key\": {}}"};
   std::istringstream s30{"{\"key\": {\"key\": \"value\"}}"};
 
-  ASSERT_EQ(Json::parse(s1).get_type(), JsonType::Invalid);
-  ASSERT_EQ(Json::parse(s2).get_type(), JsonType::Null);
-  ASSERT_EQ(Json::parse(s3).get_type(), JsonType::Bool);
-  ASSERT_EQ(Json::parse(s4).get_type(), JsonType::Bool);
-  ASSERT_EQ(Json::parse(s5).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s6).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s7).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s8).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s9).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s10).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s11).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s12).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s13).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s14).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s15).get_type(), JsonType::String);
-  ASSERT_EQ(Json::parse(s16).get_type(), JsonType::String);
-  ASSERT_EQ(Json::parse(s17).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s18).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s19).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s20).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s21).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s22).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s23).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s24).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s25).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s26).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s27).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s28).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s29).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s30).get_type(), JsonType::Object);
+  ASSERT_EQ(Json::parse(s1), std::nullopt);
+  ASSERT_EQ(Json::parse(s2), JsonType::Null);
+  ASSERT_EQ(Json::parse(s3), JsonType::Bool);
+  ASSERT_EQ(Json::parse(s4), JsonType::Bool);
+  ASSERT_EQ(Json::parse(s5), JsonType::Int);
+  ASSERT_EQ(Json::parse(s6), JsonType::Int);
+  ASSERT_EQ(Json::parse(s7), JsonType::Int);
+  ASSERT_EQ(Json::parse(s8), JsonType::Int);
+  ASSERT_EQ(Json::parse(s9), JsonType::Int);
+  ASSERT_EQ(Json::parse(s10), JsonType::Float);
+  ASSERT_EQ(Json::parse(s11), JsonType::Float);
+  ASSERT_EQ(Json::parse(s12), JsonType::Float);
+  ASSERT_EQ(Json::parse(s13), JsonType::Float);
+  ASSERT_EQ(Json::parse(s14), JsonType::Float);
+  ASSERT_EQ(Json::parse(s15), JsonType::String);
+  ASSERT_EQ(Json::parse(s16), JsonType::String);
+  ASSERT_EQ(Json::parse(s17), JsonType::Array);
+  ASSERT_EQ(Json::parse(s18), JsonType::Array);
+  ASSERT_EQ(Json::parse(s19), JsonType::Array);
+  ASSERT_EQ(Json::parse(s20), JsonType::Object);
+  ASSERT_EQ(Json::parse(s21), JsonType::Object);
+  ASSERT_EQ(Json::parse(s22), JsonType::Object);
+  ASSERT_EQ(Json::parse(s23), JsonType::Object);
+  ASSERT_EQ(Json::parse(s24), JsonType::Object);
+  ASSERT_EQ(Json::parse(s25), JsonType::Object);
+  ASSERT_EQ(Json::parse(s26), JsonType::Object);
+  ASSERT_EQ(Json::parse(s27), JsonType::Object);
+  ASSERT_EQ(Json::parse(s28), JsonType::Object);
+  ASSERT_EQ(Json::parse(s29), JsonType::Object);
+  ASSERT_EQ(Json::parse(s30), JsonType::Object);
 }
 
 TEST(ChannelSuite, ParseSpaced) {
@@ -240,34 +260,34 @@ TEST(ChannelSuite, ParseSpaced) {
   std::istringstream s29{" { \"key\" : { } } "};
   std::istringstream s30{" { \"key\" : { \"key\" : \"value\" } } "};
 
-  ASSERT_EQ(Json::parse(s1).get_type(), JsonType::Invalid);
-  ASSERT_EQ(Json::parse(s2).get_type(), JsonType::Null);
-  ASSERT_EQ(Json::parse(s3).get_type(), JsonType::Bool);
-  ASSERT_EQ(Json::parse(s4).get_type(), JsonType::Bool);
-  ASSERT_EQ(Json::parse(s5).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s6).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s7).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s8).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s9).get_type(), JsonType::Int);
-  ASSERT_EQ(Json::parse(s10).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s11).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s12).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s13).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s14).get_type(), JsonType::Float);
-  ASSERT_EQ(Json::parse(s15).get_type(), JsonType::String);
-  ASSERT_EQ(Json::parse(s16).get_type(), JsonType::String);
-  ASSERT_EQ(Json::parse(s17).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s18).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s19).get_type(), JsonType::Array);
-  ASSERT_EQ(Json::parse(s20).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s21).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s22).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s23).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s24).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s25).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s26).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s27).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s28).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s29).get_type(), JsonType::Object);
-  ASSERT_EQ(Json::parse(s30).get_type(), JsonType::Object);
+  ASSERT_EQ(Json::parse(s1), std::nullopt);
+  ASSERT_EQ(Json::parse(s2), JsonType::Null);
+  ASSERT_EQ(Json::parse(s3), JsonType::Bool);
+  ASSERT_EQ(Json::parse(s4), JsonType::Bool);
+  ASSERT_EQ(Json::parse(s5), JsonType::Int);
+  ASSERT_EQ(Json::parse(s6), JsonType::Int);
+  ASSERT_EQ(Json::parse(s7), JsonType::Int);
+  ASSERT_EQ(Json::parse(s8), JsonType::Int);
+  ASSERT_EQ(Json::parse(s9), JsonType::Int);
+  ASSERT_EQ(Json::parse(s10), JsonType::Float);
+  ASSERT_EQ(Json::parse(s11), JsonType::Float);
+  ASSERT_EQ(Json::parse(s12), JsonType::Float);
+  ASSERT_EQ(Json::parse(s13), JsonType::Float);
+  ASSERT_EQ(Json::parse(s14), JsonType::Float);
+  ASSERT_EQ(Json::parse(s15), JsonType::String);
+  ASSERT_EQ(Json::parse(s16), JsonType::String);
+  ASSERT_EQ(Json::parse(s17), JsonType::Array);
+  ASSERT_EQ(Json::parse(s18), JsonType::Array);
+  ASSERT_EQ(Json::parse(s19), JsonType::Array);
+  ASSERT_EQ(Json::parse(s20), JsonType::Object);
+  ASSERT_EQ(Json::parse(s21), JsonType::Object);
+  ASSERT_EQ(Json::parse(s22), JsonType::Object);
+  ASSERT_EQ(Json::parse(s23), JsonType::Object);
+  ASSERT_EQ(Json::parse(s24), JsonType::Object);
+  ASSERT_EQ(Json::parse(s25), JsonType::Object);
+  ASSERT_EQ(Json::parse(s26), JsonType::Object);
+  ASSERT_EQ(Json::parse(s27), JsonType::Object);
+  ASSERT_EQ(Json::parse(s28), JsonType::Object);
+  ASSERT_EQ(Json::parse(s29), JsonType::Object);
+  ASSERT_EQ(Json::parse(s30), JsonType::Object);
 }
