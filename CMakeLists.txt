@@ -11,6 +11,8 @@ option(TESTS "Enable unit tests" OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
 find_package(Threads REQUIRED)
 
 add_library(${PROJECT_NAME} INTERFACE
@@ -32,6 +34,9 @@ configure_file(
   ${PROJECT_BINARY_DIR}/${CMAKE_PROJECT_NAME}.pc
   @ONLY
 )
+
+include(Doxygen)
+Doxygen(include docs)
 
 install(DIRECTORY include/${CMAKE_PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
 

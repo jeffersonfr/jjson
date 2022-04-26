@@ -58,7 +58,7 @@ namespace jjson {
 
 }
 
-TEST(ChannelSuite, PrimitiveTypes) {
+TEST(JsonSuite, PrimitiveTypes) {
   Json j1;
   Json j2{};
   Json j3{nullptr};
@@ -119,7 +119,7 @@ TEST(ChannelSuite, PrimitiveTypes) {
   ASSERT_EQ((*Json{jArray{1, 2, 3, 4, 5}}.get<jArray>()).size(), 5);
 }
 
-TEST(ChannelSuite, PrimitiveOptional) {
+TEST(JsonSuite, PrimitiveOptional) {
   std::optional<Json> j1{nullptr};
   std::optional<Json> j2{true};
   std::optional<Json> j3{42};
@@ -139,7 +139,7 @@ TEST(ChannelSuite, PrimitiveOptional) {
   ASSERT_EQ(j7.value(), JsonType::Object);
 }
 
-TEST(ChannelSuite, CustomTypes) {
+TEST(JsonSuite, CustomTypes) {
   Json j1{
     {"x", 10},
     {"y", 20},
@@ -164,7 +164,7 @@ TEST(ChannelSuite, CustomTypes) {
   Json j4{*rect2};
 }
 
-TEST(ChannelSuite, ParseFormated) {
+TEST(JsonSuite, ParseFormated) {
   std::istringstream s1{"A"};
   std::istringstream s2{""};
   std::istringstream s3{"false"};
@@ -228,7 +228,7 @@ TEST(ChannelSuite, ParseFormated) {
   ASSERT_EQ(Json::parse(s30), JsonType::Object);
 }
 
-TEST(ChannelSuite, ParseSpaced) {
+TEST(JsonSuite, ParseSpaced) {
   std::istringstream s1{" A "};
   std::istringstream s2{"  "};
   std::istringstream s3{" false "};
@@ -291,3 +291,77 @@ TEST(ChannelSuite, ParseSpaced) {
   ASSERT_EQ(Json::parse(s29), JsonType::Object);
   ASSERT_EQ(Json::parse(s30), JsonType::Object);
 }
+
+TEST(JsonSuite, Huge) {
+  std::istringstream s{R"({
+     "items":{
+        "item":[
+           {
+              "id":"0001",
+              "type":"donut",
+              "name":"Cake",
+              "ppu":0.55,
+              "batters":{
+                 "batter":[
+                    {
+                       "id":"1001",
+                       "type":"Regular"
+                    },
+                    {
+                       "id":"1002",
+                       "type":"Chocolate"
+                    },
+                    {
+                       "id":"1003",
+                       "type":"Blueberry"
+                    },
+                    {
+                       "id":"1004",
+                       "type":"Devil's Food"
+                    }
+                 ]
+              },
+              "topping":[
+                 {
+                    "id":"5001",
+                    "type":"None"
+                 },
+                 {
+                    "id":"5002",
+                    "type":"Glazed"
+                 },
+                 {
+                    "id":"5005",
+                    "type":"Sugar"
+                 },
+                 {
+                    "id":"5007",
+                    "type":"Powdered Sugar"
+                 },
+                 {
+                    "id":"5006",
+                    "type":"Chocolate with Sprinkles"
+                 },
+                 {
+                    "id":"5003",
+                    "type":"Chocolate"
+                 },
+                 {
+                    "id":"5004",
+                    "type":"Maple"
+                 }
+              ]
+           }
+        ]
+     }
+  })"};
+
+  auto valueOpt = Json::parse(s);
+
+  ASSERT_TRUE(valueOpt);
+
+  auto value = *valueOpt;
+
+  ASSERT_EQ(value["items"]["item"][0]["batters"]["batter"].get<jArray>().value().size(), 4);
+}
+
