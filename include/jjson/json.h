@@ -1,3 +1,5 @@
+#pragma once
+
 #include <variant>
 #include <vector>
 #include <string>
@@ -39,6 +41,12 @@ namespace jjson {
   class Json {
 
     public:
+      static std::optional<Json> parse(std::string const &data) {
+        std::istringstream is{data};
+
+        return parse(is);
+      }
+
       static std::optional<Json> parse(std::istream &is) {
         Json result;
 
@@ -388,6 +396,17 @@ namespace jjson {
         throw std::runtime_error("invalid access");
       }
 
+      bool has(std::string const &key) const {
+        if (get_type() == JsonType::Object) {
+          jObject object = std::get<jObject>(mValue);
+
+          if (object.find(key) != object.end()) {
+            return true;
+          }
+        }
+
+        return false;
+      }
       /**
        * \brief Returns an object of type T if it exists, or empty otherwise.
        *
