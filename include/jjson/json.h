@@ -744,7 +744,13 @@ namespace jjson {
         } else if (value.get_type() == JsonType::Int) {
           out << value.get_or_throw<int64_t>();
         } else if (value.get_type() == JsonType::Float) {
-          out << value.get_or_throw<double>();
+          double d = value.get_or_throw<double>();
+
+          out << d;
+
+          if ((d - static_cast<int64_t>(d)) == 0) {
+            out << ".0";
+          }
         } else if (value.get_type() == JsonType::String) {
           out << std::quoted(value.get_or_throw<std::string>());
         } else if (value.get_type() == JsonType::Array) {
