@@ -9,7 +9,12 @@ FetchContent_Declare(googletest
 
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
+option(INSTALL_GTEST "" OFF)
+option(INSTALL_GMOCK "" OFF)
+
 FetchContent_MakeAvailable(googletest)
+
+include(Coverage)
 
 macro(module_test)
   set(id ${ARGV0}_test)
@@ -21,6 +26,12 @@ macro(module_test)
       jjson
       gtest_main
   )
+
+  include(StaticAnalysis)
+  AddChecker(${id})
+
+  EnableCoverage(${id})
+  AddCoverage(${id})
 
   unset(id)
 endmacro()

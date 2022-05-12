@@ -195,7 +195,7 @@ namespace jjson {
 
       template <typename T>
         requires requires (T t) {
-          { json_from<T>(t) } -> std::convertible_to<Json>;
+          { json_from<T>(t) } -> std::same_as<Json>;
         }
       Json(T const &t):
         Json{json_from<T>(t)} {
@@ -758,7 +758,9 @@ namespace jjson {
 
           out << "[";
 
-          for (bool first{true}; auto &i : array) {
+          bool first{true};
+
+          for (auto &i : array) {
             if (first == false) {
               out << ",";
             }
@@ -774,7 +776,9 @@ namespace jjson {
 
           out << "{";
 
-          for (bool first{true}; auto &i : object) {
+          bool first{true};
+
+          for (auto &i : object) {
             if (first == false) {
               out << ",";
             }
