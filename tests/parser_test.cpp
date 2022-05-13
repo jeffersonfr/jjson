@@ -14,7 +14,7 @@ struct MyRect {
 namespace jjson {
 
   template <>
-    MyRect json_to(Json const &value) {
+    auto json_to(Json const &value) -> MyRect {
       return MyRect{
         value["x"].get_or_throw<int>(),
         value["y"].get_or_throw<int>(),
@@ -23,7 +23,7 @@ namespace jjson {
     }
 
   template <>
-    std::vector<MyRect> json_to(Json const &value) {
+    auto json_to(Json const &value) -> std::vector<MyRect> {
       auto values = value.get_or_throw<jArray>();
       std::vector<MyRect> result;
 
@@ -37,7 +37,7 @@ namespace jjson {
     }
 
   template <>
-    Json json_from(MyRect const &value) {
+    auto json_from(MyRect const &value) -> Json {
       return {
         {"x", value.x},
         {"y", value.y},
@@ -46,7 +46,7 @@ namespace jjson {
     }
 
   template <>
-    Json json_from(std::vector<MyRect> const &value) {
+    auto json_from(std::vector<MyRect> const &value) -> Json {
       jArray result;
 
       for (auto &i: value) {
@@ -185,16 +185,16 @@ TEST(JsonSuite, ParseFormated) {
   std::istringstream s18{"[1234]"};
   std::istringstream s19{"[null, 1234, true, \"Hello, world\"]"};
   std::istringstream s20{"{}"};
-  std::istringstream s21{"{\"key\": null}"};
-  std::istringstream s22{"{\"key\": false}"};
-  std::istringstream s23{"{\"key\": true}"};
-  std::istringstream s24{"{\"key\": 1234}"};
-  std::istringstream s25{"{\"key\": 3.14}"};
-  std::istringstream s26{"{\"key\": 1.23e2}"};
-  std::istringstream s27{"{\"key\": \"Hello, world\"}"};
-  std::istringstream s28{"{\"key\": []}"};
-  std::istringstream s29{"{\"key\": {}}"};
-  std::istringstream s30{"{\"key\": {\"key\": \"value\"}}"};
+  std::istringstream s21{R"({"key": null})"};
+  std::istringstream s22{R"({"key": false})"};
+  std::istringstream s23{R"({"key": true})"};
+  std::istringstream s24{R"({"key": 1234})"};
+  std::istringstream s25{R"({"key": 3.14})"};
+  std::istringstream s26{R"({"key": 1.23e2})"};
+  std::istringstream s27{R"({"key": "Hello, world"})"};
+  std::istringstream s28{R"({"key": []})"};
+  std::istringstream s29{R"({"key": {}})"};
+  std::istringstream s30{R"({"key": {"key": "value"}})"};
 
   ASSERT_EQ(Json::parse(s1), std::nullopt);
   ASSERT_EQ(Json::parse(s2), JsonType::Null);
@@ -249,16 +249,16 @@ TEST(JsonSuite, ParseSpaced) {
   std::istringstream s18{" [ 1234 ] "};
   std::istringstream s19{" [null , 1234 , true , \"Hello, world\" ] "};
   std::istringstream s20{" { } "};
-  std::istringstream s21{" { \"key\" : null } "};
-  std::istringstream s22{" { \"key\" : false } "};
-  std::istringstream s23{" { \"key\" : true } "};
-  std::istringstream s24{" { \"key\" : 1234 } "};
-  std::istringstream s25{" { \"key\" : 3.14 } "};
-  std::istringstream s26{" { \"key\" : 1.23e2 } "};
-  std::istringstream s27{" { \"key\" : \"Hello, world\" } "};
-  std::istringstream s28{" { \"key\" : [ ] } "};
-  std::istringstream s29{" { \"key\" : { } } "};
-  std::istringstream s30{" { \"key\" : { \"key\" : \"value\" } } "};
+  std::istringstream s21{R"( { "key" : null } )"};
+  std::istringstream s22{R"( { "key" : false } )"};
+  std::istringstream s23{R"( { "key" : true } )"};
+  std::istringstream s24{R"( { "key" : 1234 } )"};
+  std::istringstream s25{R"( { "key" : 3.14 } )"};
+  std::istringstream s26{R"( { "key" : 1.23e2 } )"};
+  std::istringstream s27{R"( { "key" : "Hello, world" } )"};
+  std::istringstream s28{R"( { "key" : [ ] } )"};
+  std::istringstream s29{R"( { "key" : { } } )"};
+  std::istringstream s30{R"( { "key" : { "key" : "value" } } )"};
 
   ASSERT_EQ(Json::parse(s1), std::nullopt);
   ASSERT_EQ(Json::parse(s2), JsonType::Null);

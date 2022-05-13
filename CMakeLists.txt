@@ -7,9 +7,14 @@ endif()
 project (jjson CXX)
 
 option(TESTS "Enable unit tests" OFF)
+option(CHECKER "Enable static code analysing" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if (CHECKER)
+   set(CMAKE_CXX_CLANG_TIDY clang-tidy -checks=-*,android-*,bugprone-*,clang-analyzer-*,concurrency-*,hicpp-*,misc-*,modernize-*,portability-*)
+endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 

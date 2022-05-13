@@ -27,11 +27,8 @@ macro(module_test)
       gtest_main
   )
 
-  include(StaticAnalysis)
-  AddChecker(${id})
-
-  EnableCoverage(${id})
-  AddCoverage(${id})
+  # EnableCoverage(${id})
+  # AddCoverage(${id})
 
   unset(id)
 endmacro()
