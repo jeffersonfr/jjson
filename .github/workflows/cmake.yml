@@ -19,9 +19,7 @@ jobs:
     steps:
     - name: Selecting compiler
       uses: actions/checkout@v3
-      with:
-        compiler: ${{matrix.compiler}}
-        
+
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_CXX_COMPILER=${{matrix.compiler}} -DTESTS=ON
 
