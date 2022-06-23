@@ -28,9 +28,7 @@ namespace jjson {
       std::vector<MyRect> result;
 
       for (auto &i: values) {
-        Json json = i.get_or_throw<jObject>();
-
-        result.push_back(json_to<MyRect>(json));
+        result.push_back(json_to<MyRect>(i));
       }
 
       return result;

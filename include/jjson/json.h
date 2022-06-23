@@ -829,15 +829,14 @@ namespace jjson {
   };
 
   template <typename T>
-      requires requires {
+      requires 
         std::same_as<T, std::nullptr_t> ||
         std::same_as<T, bool> ||
         std::same_as<T, int64_t> ||
         std::same_as<T, double> ||
         std::same_as<T, std::string> ||
         std::same_as<T, jArray> ||
-        std::same_as<T, jObject>;
-      }
+        std::same_as<T, jObject>
     T json_to(Json const &value) {
       return std::get<T>(value.get_value());
     }
