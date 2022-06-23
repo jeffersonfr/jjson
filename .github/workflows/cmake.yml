@@ -17,7 +17,7 @@ jobs:
         compiler: ['g++-10', 'clang++-12']
 
     steps:
-    - name: Selecting compiler
+    - name: Cloning project
       uses: actions/checkout@v3
 
     - name: Configure CMake
