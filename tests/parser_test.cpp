@@ -11,49 +11,21 @@ struct MyRect {
   int h;
 };
 
-namespace jjson {
+template <>
+  auto json_to(Json const &value) -> MyRect {
+    return MyRect{
+      value["x"].get_or_throw<int>(),
+      value["y"].get_or_throw<int>(),
+      value["w"].get_or_throw<int>(),
+      value["h"].get_or_throw<int>()};
+  }
 
-  template <>
-    auto json_to(Json const &value) -> MyRect {
-      return MyRect{
-        value["x"].get_or_throw<int>(),
-        value["y"].get_or_throw<int>(),
-        value["w"].get_or_throw<int>(),
-        value["h"].get_or_throw<int>()};
-    }
-
-  template <>
-    auto json_to(Json const &value) -> std::vector<MyRect> {
-      auto values = value.get_or_throw<jArray>();
-      std::vector<MyRect> result;
-
-      for (auto &i: values) {
-        result.push_back(json_to<MyRect>(i));
-      }
-
-      return result;
-    }
-
-  template <>
-    auto json_from(MyRect const &value) -> Json {
-      return {
-        {"x", value.x},
-        {"y", value.y},
-        {"w", value.w},
-        {"h", value.h}};
-    }
-
-  template <>
-    auto json_from(std::vector<MyRect> const &value) -> Json {
-      jArray result;
-
-      for (auto &i: value) {
-        result.push_back(json_from<MyRect>(i));
-      }
-
-      return result;
-    }
-
+auto json_from(MyRect const &value) -> Json {
+  return {
+    {"x", value.x},
+    {"y", value.y},
+    {"w", value.w},
+    {"h", value.h}};
 }
 
 TEST(JsonSuite, PrimitiveTypes) {
@@ -360,6 +332,6 @@ TEST(JsonSuite, Huge) {
 
   auto value = *valueOpt;
 
-  ASSERT_EQ(value["items"]["item"][0]["batters"]["batter"].get<jArray>().value().size(), 4);
+  ASSERT_EQ(value["items"]["item"][0]["batters"]["batter"].get_or_throw<jArray>().size(), 4);
 }
 
