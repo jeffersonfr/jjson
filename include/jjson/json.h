@@ -142,11 +142,11 @@ namespace jjson {
         json_from(*this, t);
       }
 
-      template <typename T>
+      template <typename T, template <typename ...Args> class Container>
         requires requires (Json &out, T const &value) {
           { json_from(out, value) };
         }
-      Json(std::vector<T> const &values)
+      Json(Container<T> const &values)
       {
         jArray array;
 
