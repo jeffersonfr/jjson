@@ -11,21 +11,25 @@ struct MyRect {
   int h;
 };
 
+namespace jjson {
+
 template <>
-  auto json_to(Json const &value) -> MyRect {
-    return MyRect{
+  void json_to(Json const &value, MyRect &out) {
+    out = MyRect{
       value["x"].get_or_throw<int>(),
       value["y"].get_or_throw<int>(),
       value["w"].get_or_throw<int>(),
       value["h"].get_or_throw<int>()};
   }
 
-auto json_from(MyRect const &value) -> Json {
-  return {
-    {"x", value.x},
-    {"y", value.y},
-    {"w", value.w},
-    {"h", value.h}};
+  void json_from(Json &out, MyRect const &value) {
+    out = Json{
+      {"x", value.x},
+      {"y", value.y},
+      {"w", value.w},
+      {"h", value.h}};
+  }
+
 }
 
 TEST(JsonSuite, PrimitiveTypes) {

@@ -133,24 +133,29 @@ namespace jjson {
       }
 
       template <typename T>
-        requires requires (T const &t) {
-          { json_from(t) } -> std::same_as<Json>;
+        requires requires (Json &out, T const &value) {
+          { json_from(out, value) };
         }
       Json(T const &t)
-        : Json{json_from(t)}
+        : Json{}
       {
+        json_from(*this, t);
       }
 
       template <typename T>
-        requires requires (T const &t) {
-          { json_from(t) } -> std::same_as<Json>;
+        requires requires (Json &out, T const &value) {
+          { json_from(out, value) };
         }
       Json(std::vector<T> const &values)
       {
         jArray array;
 
         for (auto &value : values) {
-          array.push_back(json_from(value));
+          Json out{};
+
+          json_from(out, value);
+
+          array.push_back(out);
         }
 
         mValue = array;
@@ -313,7 +318,11 @@ namespace jjson {
       template <typename T>
         std::optional<T> get() const {
           try {
-            return json_to<T>(*this);
+            T value{};
+
+            json_to<T>(*this, value);
+
+            return value;
           } catch (...) {
           }
 
@@ -726,41 +735,37 @@ namespace jjson {
 
   };
 
-}
+  // INFO:: T is a std::vector, this method needs the specialization that following
+  template <typename T>
+    void json_to(jjson::Json const &json, T &out) {
+      auto values = json.get_or_throw<jjson::jArray>();
 
-// INFO:: T is a std::vector, this method needs the specialization that following
-template <typename T>
-  T json_to(jjson::Json const &value) {
-    auto values = value.get_or_throw<jjson::jArray>();
-    T result;
-
-    for (auto &value: values) {
-      result.push_back(value.get_or_throw<typename T::value_type>());
+      for (auto &value: values) {
+        out.push_back(value.get_or_throw<typename T::value_type>());
+      }
     }
 
-    return result;
-  }
+  template <typename T>
+      requires 
+        std::same_as<T, std::nullptr_t> ||
+        std::same_as<T, bool> ||
+        std::same_as<T, int64_t> ||
+        std::same_as<T, double> ||
+        std::same_as<T, std::string> ||
+        std::same_as<T, jjson::jArray> ||
+        std::same_as<T, jjson::jObject>
+    void json_to(jjson::Json const &json, T &out) {
+      out = std::get<T>(json.get_value());
+    }
 
-template <typename T>
-    requires 
-      std::same_as<T, std::nullptr_t> ||
-      std::same_as<T, bool> ||
-      std::same_as<T, int64_t> ||
-      std::same_as<T, double> ||
-      std::same_as<T, std::string> ||
-      std::same_as<T, jjson::jArray> ||
-      std::same_as<T, jjson::jObject>
-  T json_to(jjson::Json const &value) {
-    return std::get<T>(value.get_value());
-  }
+  template <>
+    void json_to(jjson::Json const &value, int &out) {
+      out = static_cast<int>(std::get<int64_t>(value.get_value()));
+    }
 
-template <>
-  int json_to(jjson::Json const &value) {
-    return static_cast<int>(std::get<int64_t>(value.get_value()));
-  }
+  template <>
+    void json_to(jjson::Json const &value, float &out) {
+      out = static_cast<float>(std::get<double>(value.get_value()));
+    }
 
-template <>
-  float json_to(jjson::Json const &value) {
-    return static_cast<float>(std::get<double>(value.get_value()));
-  }
-
+}
