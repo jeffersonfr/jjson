@@ -21,9 +21,9 @@ namespace jjson {
   enum class JsonType {
     Null,
     Bool,
-    Int,
-    Float,
-    String,
+    Integer,
+    Decimal,
+    Text,
     Array,
     Object
   };
@@ -36,9 +36,27 @@ namespace jjson {
       
   using jValue = std::variant<std::nullptr_t, bool, int64_t, double, std::string, jArray, jObject>;
 
+  template <typename T>
+  concept JsonTypeConcept = 
+    std::same_as<T, std::nullptr_t> ||
+    std::same_as<T, bool> ||
+    std::convertible_to<T, int64_t> ||
+    std::convertible_to<T, double> ||
+    std::convertible_to<T, std::string> ||
+    std::same_as<T, jArray> ||
+    std::same_as<T, jObject>;
+
   class Json {
 
     public:
+      using null_type = std::nullptr_t;
+      using bool_type = bool;
+      using integer_type = int64_t;
+      using decimal_type = double;
+      using text_type = std::string;
+      using array_type = jArray;
+      using object_type = jObject;
+
       static std::optional<Json> parse(std::string const &data) {
         std::istringstream is{data};
 
@@ -88,37 +106,26 @@ namespace jjson {
         : Json{nullptr} {
       }
 
-      template <typename T>
-        requires 
-          std::same_as<T, std::nullptr_t> ||
-          std::same_as<T, bool> ||
-          std::convertible_to<T, int64_t> ||
-          std::convertible_to<T, double> ||
-          std::convertible_to<T, std::string> ||
-          std::same_as<T, jArray> ||
-          std::same_as<T, jObject>
+      template <JsonTypeConcept T>
       Json(T const &value)
         : mValue{value} {
       }
 
-      template <typename T>
-        requires 
-          std::same_as<T, std::nullptr_t> ||
-          std::same_as<T, bool> ||
-          std::convertible_to<T, int64_t> ||
-          std::convertible_to<T, double> ||
-          std::convertible_to<T, std::string> ||
-          std::same_as<T, jArray> ||
-          std::same_as<T, jObject>
+      template <JsonTypeConcept T>
       Json(T &&value)
         : mValue{std::move(value)} {
       }
 
-      template <typename T, std::size_t N>
-        Json(std::array<T, N> const &value)
-          : Json{jArray{value.begin(), value.end()}}
-        {
+      template <JsonTypeConcept T>
+      Json(std::initializer_list<T> const &values) {
+        if (values.size() == 0) {
+          mValue = nullptr;
+        } else if (values.size() == 1) {
+          mValue = *values.begin();
+        } else {
+          mValue = std::move(jArray{values.begin(), values.end()});
         }
+      }
 
       Json(Json const &value)
         : mValue{value.mValue} {
@@ -150,13 +157,14 @@ namespace jjson {
       {
         jArray array;
 
-        for (auto &value : values) {
-          Json out{};
+        std::transform(std::begin(values), std::end(values), std::back_inserter(array),
+            [](T const &value) -> Json {
+              Json out;
 
-          json_from(out, value);
+              json_from(out, value);
 
-          array.push_back(out);
-        }
+              return out;
+            });
 
         mValue = array;
       }
@@ -165,11 +173,11 @@ namespace jjson {
         if (std::holds_alternative<bool>(mValue) == true) {
           return JsonType::Bool;
         } else if (std::holds_alternative<int64_t>(mValue) == true) {
-          return JsonType::Int;
+          return JsonType::Integer;
         } else if (std::holds_alternative<double>(mValue) == true) {
-          return JsonType::Float;
+          return JsonType::Decimal;
         } else if (std::holds_alternative<std::string>(mValue) == true) {
-          return JsonType::String;
+          return JsonType::Text;
         } else if (std::holds_alternative<jArray>(mValue) == true) {
           return JsonType::Array;
         } else if (std::holds_alternative<jObject>(mValue) == true) {
@@ -179,15 +187,35 @@ namespace jjson {
         return JsonType::Null;
       }
 
-      template <typename T>
-        requires 
-          std::same_as<T, std::nullptr_t> ||
-          std::same_as<T, bool> ||
-          std::convertible_to<T, int64_t> ||
-          std::convertible_to<T, double> ||
-          std::convertible_to<T, std::string> ||
-          std::same_as<T, jArray> ||
-          std::same_as<T, jObject>
+      bool is_null() {
+        return get_type() == JsonType::Null;
+      }
+
+      bool is_bool() {
+        return get_type() == JsonType::Bool;
+      }
+
+      bool is_integer() {
+        return get_type() == JsonType::Integer;
+      }
+
+      bool is_decimal() {
+        return get_type() == JsonType::Decimal;
+      }
+
+      bool is_text() {
+        return get_type() == JsonType::Text;
+      }
+
+      bool is_array() {
+        return get_type() == JsonType::Array;
+      }
+
+      bool is_object() {
+        return get_type() == JsonType::Object;
+      }
+
+      template <JsonTypeConcept T>
       Json & operator = (T const &value) {
         *this = Json{value};
 
@@ -227,7 +255,7 @@ namespace jjson {
       }
 
       bool operator == (int64_t value) const {
-        if (get_type() == JsonType::Int) {
+        if (get_type() == JsonType::Integer) {
           return std::get<int64_t>(mValue) == value;
         }
 
@@ -235,7 +263,7 @@ namespace jjson {
       }
 
       bool operator == (double value) const {
-        if (get_type() == JsonType::Float) {
+        if (get_type() == JsonType::Decimal) {
           return std::get<double>(mValue) == value;
         }
 
@@ -243,7 +271,7 @@ namespace jjson {
       }
 
       bool operator == (const char *value) const {
-        if (get_type() == JsonType::String) {
+        if (get_type() == JsonType::Text) {
           return std::get<std::string>(mValue) == value;
         }
 
@@ -251,7 +279,7 @@ namespace jjson {
       }
 
       bool operator == (std::string const &value) const {
-        if (get_type() == JsonType::String) {
+        if (get_type() == JsonType::Text) {
           return std::get<std::string>(mValue) == value;
         }
 
@@ -316,18 +344,18 @@ namespace jjson {
        * \return type T, if exists.
        */
       template <typename T>
-        std::optional<T> get() const {
-          try {
-            T value{};
+      std::optional<T> get() const {
+        try {
+          T value{};
 
-            json_to<T>(*this, value);
+          json_to(*this, value);
 
-            return value;
-          } catch (...) {
-          }
-
-          return {};
+          return value;
+        } catch (...) {
         }
+
+        return {};
+      }
 
       /**
        * \brief Returns an object of type T if it exists, or throw otherwise.
@@ -335,15 +363,15 @@ namespace jjson {
        * \return type T, if exists.
        */
       template <typename T>
-        T get_or_throw() const {
-          auto value = get<T>();
+      T get_or_throw() const {
+        auto value = get<T>();
 
-          if (value) {
-            return *value;
-          }
-
-          throw std::runtime_error("unavailable type");
+        if (value) {
+          return *value;
         }
+
+        throw std::runtime_error("unavailable type");
+      }
 
       /**
        * \brief Dumps the content to string.
@@ -648,9 +676,9 @@ namespace jjson {
           out << "null";
         } else if (value.get_type() == JsonType::Bool) {
           out << value.get_or_throw<bool>();
-        } else if (value.get_type() == JsonType::Int) {
+        } else if (value.get_type() == JsonType::Integer) {
           out << value.get_or_throw<int64_t>();
-        } else if (value.get_type() == JsonType::Float) {
+        } else if (value.get_type() == JsonType::Decimal) {
           double d = value.get_or_throw<double>();
 
           out << d;
@@ -658,7 +686,7 @@ namespace jjson {
           if ((d - static_cast<int64_t>(d)) == 0) {
             out << ".0";
           }
-        } else if (value.get_type() == JsonType::String) {
+        } else if (value.get_type() == JsonType::Text) {
           out << std::quoted(value.get_or_throw<std::string>());
         } else if (value.get_type() == JsonType::Array) {
           jArray array = value.get_or_throw<jArray>();
@@ -737,35 +765,27 @@ namespace jjson {
 
   // INFO:: T is a std::vector, this method needs the specialization that following
   template <typename T>
-    void json_to(jjson::Json const &json, T &out) {
-      auto values = json.get_or_throw<jjson::jArray>();
+  void json_to(jjson::Json const &json, T &out) {
+    auto values = json.get_or_throw<jjson::jArray>();
 
-      for (auto &value: values) {
-        out.push_back(value.get_or_throw<typename T::value_type>());
-      }
+    for (auto &value: values) {
+      out.push_back(value.get_or_throw<typename T::value_type>());
     }
+  }
 
-  template <typename T>
-      requires 
-        std::same_as<T, std::nullptr_t> ||
-        std::same_as<T, bool> ||
-        std::same_as<T, int64_t> ||
-        std::same_as<T, double> ||
-        std::same_as<T, std::string> ||
-        std::same_as<T, jjson::jArray> ||
-        std::same_as<T, jjson::jObject>
-    void json_to(jjson::Json const &json, T &out) {
-      out = std::get<T>(json.get_value());
-    }
+  template <JsonTypeConcept T>
+  void json_to(jjson::Json const &json, T &out) {
+    out = std::get<T>(json.get_value());
+  }
 
   template <>
-    void json_to(jjson::Json const &value, int &out) {
-      out = static_cast<int>(std::get<int64_t>(value.get_value()));
-    }
+  void json_to(jjson::Json const &json, int &out) {
+    out = static_cast<int>(std::get<int64_t>(json.get_value()));
+  }
 
   template <>
-    void json_to(jjson::Json const &value, float &out) {
-      out = static_cast<float>(std::get<double>(value.get_value()));
-    }
+  void json_to(jjson::Json const &json, float &out) {
+    out = static_cast<float>(std::get<double>(json.get_value()));
+  }
 
 }
