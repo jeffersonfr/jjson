@@ -81,7 +81,7 @@ TEST(JsonSuite, PrimitiveTypes) {
   ASSERT_EQ((j1 = jArray{1, 2, 3}), JsonType::Array);
   ASSERT_EQ((j1 = jObject{{"key", "value"}}), JsonType::Object);
 
-  Json j11{jArray{1, 2, 3, 4, 5}};
+  Json j11{1, 2.1, true, "3"};
   
   ASSERT_EQ(Json{}.get<std::nullptr_t>(), nullptr);
   ASSERT_EQ(Json{true}.get<bool>(), true);

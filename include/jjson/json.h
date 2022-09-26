@@ -116,15 +116,9 @@ namespace jjson {
         : mValue{std::move(value)} {
       }
 
-      template <JsonTypeConcept T>
-      Json(std::initializer_list<T> const &values) {
-        if (values.size() == 0) {
-          mValue = nullptr;
-        } else if (values.size() == 1) {
-          mValue = *values.begin();
-        } else {
-          mValue = std::move(jArray{values.begin(), values.end()});
-        }
+      template <JsonTypeConcept ...Args>
+      Json(Args ...args)
+        : mValue{jArray{args...}} {
       }
 
       Json(Json const &value)
