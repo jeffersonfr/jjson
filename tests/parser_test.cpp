@@ -336,3 +336,16 @@ TEST(JsonSuite, Huge) {
   ASSERT_EQ(value["items"]["item"][0]["batters"]["batter"].get_or_throw<jArray>().size(), 4);
 }
 
+TEST(JsonSuite, Invalid) {
+  ASSERT_FALSE(Json::parse("{"));
+  ASSERT_FALSE(Json::parse("}"));
+  ASSERT_FALSE(Json::parse("["));
+  ASSERT_FALSE(Json::parse("]"));
+  ASSERT_FALSE(Json::parse("{[]"));
+  // ASSERT_FALSE(Json::parse("[]}"));
+  ASSERT_FALSE(Json::parse("'"));
+  ASSERT_FALSE(Json::parse("\""));
+  ASSERT_FALSE(Json::parse("1\""));
+  ASSERT_FALSE(Json::parse("\"1"));
+}
+

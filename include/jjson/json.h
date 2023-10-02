@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <cctype>
 #include <cmath>
+#include <algorithm>
 
 namespace jjson {
   class Json;
@@ -614,7 +615,7 @@ namespace jjson {
           }
         }
 
-        return result;
+        throw std::runtime_error("unable to parse array");
       }
 
       static Json _read_object(std::istream &is) {

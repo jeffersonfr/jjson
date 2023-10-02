@@ -3,12 +3,12 @@ exec_prefix="${prefix}"
 libdir="${prefix}/lib"
 includedir="${prefix}/include"
 
-Name: jjson
-Description: A json parser
-URL: https://github.com/me/jeffersonfr/jjson
-Version: 0.0.1
-Requires: @PKGCONF_REQ_PUB@
-Requires.private: @PKGCONF_REQ_PRIV@
+Name: @PROJECT_NAME@
+Description: @CMAKE_PROJECT_DESCRIPTION@
+URL: @CMAKE_PROJECT_HOMEPAGE_URL@
+Version: @PROJECT_VERSION@
+Requires: @PC_REQ_PUB@
+Requires.private: @PC_REQ_PRIVATE@
 Cflags: -I"${includedir}" 
-Libs: 
-Libs.private:
+Libs: -L"${libdir}"
+Libs.private: -L"${libdir}" @PC_LIBS_PRIVATE@
