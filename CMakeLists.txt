@@ -53,4 +53,4 @@ install(DIRECTORY include/${CMAKE_PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_PREF
 # generate pc file
 configure_file(jjson.pc.in jjson.pc @ONLY)
 
-install(FILES ${CMAKE_BINARY_DIR}/jjson.pc DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/jjson.pc DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/pkgconfig)
