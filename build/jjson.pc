@@ -1,0 +1,14 @@
+prefix="/usr/local"
+exec_prefix="${prefix}"
+libdir="${prefix}/lib"
+includedir="${prefix}/include"
+
+Name: jjson
+Description: A json parser
+URL: https://github.com/jeffersonfr/jjson
+Version: 1.0.0
+Requires: 
+Requires.private: 
+Cflags: -I"${includedir}" 
+Libs: -L"${libdir}"
+Libs.private: -L"${libdir}" 

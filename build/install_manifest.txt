@@ -1,0 +1,2 @@
+/usr/local/include/jjson/json.h
+/usr/local/lib/pkgconfig/jjson.pc

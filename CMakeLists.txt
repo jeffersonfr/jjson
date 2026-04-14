@@ -35,9 +35,7 @@ target_include_directories(${PROJECT_NAME}
 
 enable_testing()
 
-if (JJSON_TESTS)
-  add_subdirectory(tests)
-endif()
+add_subdirectory(tests)
 
 configure_file(
   ${PROJECT_SOURCE_DIR}/${CMAKE_PROJECT_NAME}.pc.in

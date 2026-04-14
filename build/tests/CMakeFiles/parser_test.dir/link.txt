@@ -1,0 +1,1 @@
+/usr/bin/c++ -rdynamic CMakeFiles/parser_test.dir/parser_test.cpp.o -o parser_test  ../lib/libgtest_main.a ../lib/libgtest.a 

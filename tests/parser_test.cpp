@@ -1,3 +1,7 @@
+#include <chrono>
+#include <fcntl.h>
+#include <fstream>
+
 #include "jjson/json.h"
 
 #include <gtest/gtest.h>
@@ -347,5 +351,33 @@ TEST(JsonSuite, Invalid) {
   ASSERT_FALSE(Json::parse("\""));
   ASSERT_FALSE(Json::parse("1\""));
   ASSERT_FALSE(Json::parse("\"1"));
+}
+
+TEST(JsonSuite, BigData) {
+  auto t0 = std::chrono::high_resolution_clock::now();
+  std::fstream file("/home/jeff/Downloads/usuarios.json");
+
+  ASSERT_TRUE(file.is_open());
+
+  // determine file size
+  file.seekg(0, std::ios::end);
+  std::streamsize size = file.tellg();
+  file.seekg(0, std::ios::beg);
+
+  // create a buffer and read the raw data
+  std::vector<char> buffer(size);
+
+  ASSERT_TRUE(file.read(buffer.data(), size));
+  auto t1 = std::chrono::high_resolution_clock::now();
+
+  auto value = Json::parse(buffer.data());
+  auto t2 = std::chrono::high_resolution_clock::now();
+
+  std::cout << "load: " << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() << "ms" << std::endl;
+  std::cout << "parse: " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << "ms" << std::endl;
+
+  ASSERT_TRUE(value.has_value());
+
+  std::cout << "Size: " << value.value().get<jArray>().value().size() << std::endl;
 }
 
