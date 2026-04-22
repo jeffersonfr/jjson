@@ -18,10 +18,10 @@ struct MyRect {
 namespace jjson {
   void json_to(Json const &value, MyRect &out) {
     out = MyRect{
-      value["x"].get_or_throw<int>(),
-      value["y"].get_or_throw<int>(),
-      value["w"].get_or_throw<int>(),
-      value["h"].get_or_throw<int>()};
+      value["x"].get<int>().value(),
+      value["y"].get<int>().value(),
+      value["w"].get<int>().value(),
+      value["h"].get<int>().value()};
   }
 
   void json_from(Json &out, MyRect const &value) {
@@ -380,4 +380,3 @@ TEST(JsonSuite, BigData) {
 
   std::cout << "Size: " << value.value().get<jArray>().value().size() << std::endl;
 }
-

@@ -34,11 +34,11 @@ namespace jjson {
   using jArray = std::vector<Json>;
 
   using jObject = std::map<std::string, Json>;
-      
+
   using jValue = std::variant<std::nullptr_t, bool, int64_t, double, std::string, jArray, jObject>;
 
   template <typename T>
-  concept JsonTypeConcept = 
+  concept JsonTypeConcept =
     std::same_as<T, std::nullptr_t> ||
     std::same_as<T, bool> ||
     std::convertible_to<T, int64_t> ||
@@ -58,8 +58,8 @@ namespace jjson {
       using array_type = jArray;
       using object_type = jObject;
 
-      static std::optional<Json> parse(std::string const &data) {
-        std::istringstream is{data};
+      static std::optional<Json> parse(std::string_view data) {
+        std::istringstream is{data.data()};
 
         return parse(is);
       }
@@ -111,12 +111,12 @@ namespace jjson {
 
       template <JsonTypeConcept T>
       Json(T &&value)
-        : mValue{std::forward<T&&>(value)} {
+        : mValue{std::forward<T &&>(value)} {
       }
 
       template <JsonTypeConcept ...Args>
       Json(Args &&...args)
-        : mValue{jArray{std::forward<Args&&>(args)...}} {
+        : mValue{jArray{std::forward<Args &&>(args)...}} {
       }
 
       Json(Json const &value)
@@ -209,14 +209,7 @@ namespace jjson {
 
       template <JsonTypeConcept T>
       Json & operator = (T const &value) {
-        this->mValue = value;
-
-        return *this;
-      }
-
-      template <JsonTypeConcept T>
-      Json & operator = (T &&value) {
-        this->mValue = std::forward<T&&>(value);
+        *this = Json{value};
 
         return *this;
       }
@@ -287,7 +280,7 @@ namespace jjson {
 
       bool operator == (jArray value) const {
         if (auto const *myValue = std::get_if<jArray>(&mValue)) {
-          return std::equal(value.begin(), value.end(), std::begin(*myValue),
+          return std::equal(value.begin(), value.end(), myValue->begin(),
               [](auto const &lhs, auto const &rhs) -> bool {
                 return lhs.mValue == rhs.mValue;
               });
@@ -297,14 +290,6 @@ namespace jjson {
       }
 
       Json & operator [] (std::size_t index) {
-        if (auto *value = std::get_if<jArray>(&mValue)) {
-          return (*value)[index];
-        }
-
-        throw std::runtime_error("invalid access");
-        }
-
-      Json const & operator [] (std::size_t index) const {
         if (auto *value = std::get_if<jArray>(&mValue)) {
           return (*value)[index];
         }
@@ -322,25 +307,20 @@ namespace jjson {
         throw std::runtime_error("invalid access");
       }
 
-      Json const & operator [] (std::string const &key) const {
-        if (auto *value = std::get_if<jObject>(&mValue)) {
-          if (auto i = value->find(key); i != value->end()) {
-            return i->second;
-          }
-        }
+      Json const & operator [] (std::size_t index) const {
+        return const_cast<Json &>(*this)[index];
+      }
 
-        throw std::runtime_error("invalid access");
+      Json const & operator [] (std::string const &key) const {
+        return const_cast<Json &>(*this)[key];
       }
 
       bool has(std::string const &key) const {
-        if (get_type() == JsonType::Object) {
-          jObject object = std::get<jObject>(mValue);
+        auto const *object = std::get_if<jObject>(&mValue);
 
-          return object.contains(key);
-        }
-
-        return false;
+        return object->find(key) != object->end();
       }
+
       /**
        * \brief Returns an object of type T if it exists, or empty otherwise.
        *
@@ -366,16 +346,11 @@ namespace jjson {
        * \return type T, if exists.
        */
       template <typename T>
-      T & get_or_throw() {
-        return std::get<T>(mValue);
-      }
-
-      template <typename T>
       T const & get_or_throw() const {
         return std::get<T>(mValue);
       }
 
-    /**
+      /**
        * \brief Dumps the content to string.
        *
        */
@@ -384,7 +359,7 @@ namespace jjson {
 
         out << std::boolalpha;
 
-        _dump(*this, out); 
+        _dump(*this, out);
 
         return out.str();
       }
@@ -512,14 +487,14 @@ namespace jjson {
               } else if (c >= '0' and c <= '9') {
                 token += static_cast<char>(c);
               }
-                  
+
               first = false;
             }
 
             is.get();
           }
         }
-          
+
         if (c < 0 or c == '}' or c == ']' or c == ',' or std::isspace(c) != 0) {
           Json result;
 
@@ -593,7 +568,7 @@ namespace jjson {
 
       static Json _read_array(std::istream &is) {
         jArray result{};
- 
+
         is.get(); // remove first '['
 
         while (is) {
@@ -608,8 +583,8 @@ namespace jjson {
           } else if (c == ',') {
             is.get();
           } else {
-            if (std::optional<Json> &&valueOpt = parse(is); valueOpt) {
-              result.push_back(*valueOpt);
+            if (std::optional<Json> &&valueOpt = std::move(parse(is)); valueOpt) {
+              result.push_back(std::move(valueOpt.value()));
             } else {
               is.get(); // skip char if no byte was read
             }
@@ -621,7 +596,7 @@ namespace jjson {
 
       static Json _read_object(std::istream &is) {
         jObject result{};
- 
+
         is.get(); // remove first '['
 
         while (is) {
@@ -636,7 +611,7 @@ namespace jjson {
           } else if (c == ',') {
             is.get();
           } else {
-            std::string key = _read_string(is);
+            std::string key = std::move(_read_string(is));
 
             if (key.empty() == true) {
               throw std::runtime_error("unable to find object key");
@@ -654,8 +629,8 @@ namespace jjson {
               throw std::runtime_error("invalid object separator");
             }
 
-            if (std::optional<Json> &&valueOpt = parse(is); valueOpt) {
-              std::swap(result[key], *valueOpt);
+            if (std::optional<Json> &&valueOpt = std::move(parse(is)); valueOpt) {
+              result[key] = std::move(valueOpt.value());
             } else {
               throw std::runtime_error("unable to find object value");
             }
@@ -715,7 +690,7 @@ namespace jjson {
             first = false;
 
             out << std::quoted(i.first) << ":";
-            
+
             _dump(i.second, out);
           }
 
