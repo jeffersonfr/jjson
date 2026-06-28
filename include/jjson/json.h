@@ -3,15 +3,18 @@
 #include <variant>
 #include <vector>
 #include <string>
-#include <span>
+#include <string_view>
 #include <map>
-#include <cassert>
 #include <optional>
-#include <sstream>
-#include <iomanip>
+#include <charconv>
 #include <cctype>
 #include <cmath>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
+#include <istream>
+#include <iterator>
+#include <unordered_map>
 
 namespace jjson {
   class Json;
@@ -32,13 +35,11 @@ namespace jjson {
   class Json;
 
   using jArray = std::vector<Json>;
-
-  using jObject = std::map<std::string, Json>;
-      
+  using jObject = std::unordered_map<std::string, Json>;
   using jValue = std::variant<std::nullptr_t, bool, int64_t, double, std::string, jArray, jObject>;
 
   template <typename T>
-  concept JsonTypeConcept = 
+  concept JsonTypeConcept =
     std::same_as<T, std::nullptr_t> ||
     std::same_as<T, bool> ||
     std::convertible_to<T, int64_t> ||
@@ -46,6 +47,25 @@ namespace jjson {
     std::convertible_to<T, std::string> ||
     std::same_as<T, jArray> ||
     std::same_as<T, jObject>;
+
+  struct ParseState {
+    const char *p;
+    const char *end;
+
+    int peek() const {
+      return p < end ? static_cast<unsigned char>(*p) : -1;
+    }
+
+    int get() {
+      return p < end ? static_cast<unsigned char>(*p++) : -1;
+    }
+
+    void skip_space() {
+      while (p < end && std::isspace(static_cast<unsigned char>(*p))) {
+        ++p;
+      }
+    }
+  };
 
   class Json {
 
@@ -58,46 +78,14 @@ namespace jjson {
       using array_type = jArray;
       using object_type = jObject;
 
-      static std::optional<Json> parse(std::string const &data) {
-        std::istringstream is{data};
-
-        return parse(is);
+      static std::optional<Json> parse(std::string_view data) {
+        ParseState ps{data.data(), data.data() + data.size()};
+        return _parse(ps);
       }
 
       static std::optional<Json> parse(std::istream &is) {
-        while (is) {
-          int c = std::tolower(is.peek());
-
-          try {
-            if (std::isspace(c)) {
-              _skip_space(is);
-
-              continue;
-            } else if (c == -1) {
-              return Json{};
-            } else if (c == 'n') { // 'n'ull
-              return _read_null(is);
-            } else if (c == 'f' or c == 't') { // 'f'alse or 't'rue
-              return _read_bool(is);
-            } else if (c == '+' or c == '-' or c == '.' or (c >= '0' and c <= '9')) {
-              return _read_number(is); // 42, 0x2a, 018, 0b1010, 3.1415+4
-            } else if (c == '"') {
-              return _read_string(is);
-            } else if (c == '[') {
-              return _read_array(is);
-            } else if (c == '{') {
-              return _read_object(is);
-            } else {
-              return {};
-            }
-          } catch (...) {
-            return {};
-          }
-
-          break;
-        }
-
-        return {};
+        std::string data(std::istreambuf_iterator<char>(is), {});
+        return parse(std::string_view(data));
       }
 
       Json()
@@ -111,12 +99,12 @@ namespace jjson {
 
       template <JsonTypeConcept T>
       Json(T &&value)
-        : mValue{std::forward<T&&>(value)} {
+        : mValue{std::move(value)} {
       }
 
       template <JsonTypeConcept ...Args>
       Json(Args &&...args)
-        : mValue{jArray{std::forward<Args&&>(args)...}} {
+        : mValue{jArray{std::move(args)...}} {
       }
 
       Json(Json const &value)
@@ -128,7 +116,7 @@ namespace jjson {
       }
 
       Json(std::initializer_list<std::pair<std::string, Json>> const &value)
-        : Json(jObject{value.begin(), value.end()}) {
+        : Json{jObject{value.begin(), value.end()}} {
       }
 
       template <typename T>
@@ -148,88 +136,68 @@ namespace jjson {
       Json(Container<T> const &values)
       {
         jArray array;
+        array.reserve(values.size());
 
-        std::transform(std::begin(values), std::end(values), std::back_inserter(array),
-            [](T const &value) -> Json {
-              Json out;
-
-              json_from(out, value);
-
-              return out;
-            });
+        for (auto const &v : values) {
+          Json out;
+          json_from(out, v);
+          array.push_back(std::move(out));
+        }
 
         mValue = std::move(array);
       }
 
       JsonType get_type() const {
-        if (std::holds_alternative<bool>(mValue) == true) {
-          return JsonType::Bool;
-        } else if (std::holds_alternative<int64_t>(mValue) == true) {
-          return JsonType::Integer;
-        } else if (std::holds_alternative<double>(mValue) == true) {
-          return JsonType::Decimal;
-        } else if (std::holds_alternative<std::string>(mValue) == true) {
-          return JsonType::Text;
-        } else if (std::holds_alternative<jArray>(mValue) == true) {
-          return JsonType::Array;
-        } else if (std::holds_alternative<jObject>(mValue) == true) {
-          return JsonType::Object;
-        }
-
-        return JsonType::Null;
+        return static_cast<JsonType>(mValue.index());
       }
 
-      bool is_null() {
+      bool is_null() const {
         return get_type() == JsonType::Null;
       }
 
-      bool is_bool() {
+      bool is_bool() const {
         return get_type() == JsonType::Bool;
       }
 
-      bool is_integer() {
+      bool is_integer() const {
         return get_type() == JsonType::Integer;
       }
 
-      bool is_decimal() {
+      bool is_decimal() const {
         return get_type() == JsonType::Decimal;
       }
 
-      bool is_text() {
+      bool is_text() const {
         return get_type() == JsonType::Text;
       }
 
-      bool is_array() {
+      bool is_array() const {
         return get_type() == JsonType::Array;
       }
 
-      bool is_object() {
+      bool is_object() const {
         return get_type() == JsonType::Object;
       }
 
       template <JsonTypeConcept T>
       Json & operator = (T const &value) {
         this->mValue = value;
-
         return *this;
       }
 
       template <JsonTypeConcept T>
       Json & operator = (T &&value) {
-        this->mValue = std::forward<T&&>(value);
-
+        this->mValue = std::move(value);
         return *this;
       }
 
       Json & operator = (Json const &value) {
         mValue = value.mValue;
-
         return *this;
       }
 
       Json & operator = (Json &&value) {
         mValue = std::move(value.mValue);
-
         return *this;
       }
 
@@ -237,78 +205,49 @@ namespace jjson {
         return get_type() == value;
       }
 
-      bool operator == (std::nullptr_t value) const {
-        if (get_type() == JsonType::Null) {
-          return true;
-        }
-
-        return false;
+      bool operator == (std::nullptr_t) const {
+        return get_type() == JsonType::Null;
       }
 
       bool operator == (bool value) const {
-        if (get_type() == JsonType::Bool) {
-          return std::get<bool>(mValue) == value;
-        }
-
-        return false;
+        return get_type() == JsonType::Bool && std::get<bool>(mValue) == value;
       }
 
       bool operator == (int64_t value) const {
-        if (get_type() == JsonType::Integer) {
-          return std::get<int64_t>(mValue) == value;
-        }
-
-        return false;
+        return get_type() == JsonType::Integer && std::get<int64_t>(mValue) == value;
       }
 
       bool operator == (double value) const {
-        if (get_type() == JsonType::Decimal) {
-          return std::get<double>(mValue) == value;
-        }
-
-        return false;
+        return get_type() == JsonType::Decimal && std::get<double>(mValue) == value;
       }
 
       bool operator == (const char *value) const {
-        if (get_type() == JsonType::Text) {
-          return std::get<std::string>(mValue) == value;
-        }
-
-        return false;
+        return get_type() == JsonType::Text && std::get<std::string>(mValue) == value;
       }
 
       bool operator == (std::string const &value) const {
-        if (get_type() == JsonType::Text) {
-          return std::get<std::string>(mValue) == value;
-        }
-
-        return false;
+        return get_type() == JsonType::Text && std::get<std::string>(mValue) == value;
       }
 
-      bool operator == (jArray value) const {
-        if (auto const *myValue = std::get_if<jArray>(&mValue)) {
-          return std::equal(value.begin(), value.end(), std::begin(*myValue),
-              [](auto const &lhs, auto const &rhs) -> bool {
-                return lhs.mValue == rhs.mValue;
-              });
-        }
-
-        return false;
+      bool operator == (jArray const &value) const {
+        auto const *myValue = std::get_if<jArray>(&mValue);
+        return myValue && std::equal(value.begin(), value.end(), myValue->begin(),
+            [](auto const &lhs, auto const &rhs) {
+              return lhs.mValue == rhs.mValue;
+            });
       }
 
       Json & operator [] (std::size_t index) {
         if (auto *value = std::get_if<jArray>(&mValue)) {
           return (*value)[index];
         }
-
         throw std::runtime_error("invalid access");
-        }
+      }
 
       Json const & operator [] (std::size_t index) const {
         if (auto *value = std::get_if<jArray>(&mValue)) {
           return (*value)[index];
         }
-
         throw std::runtime_error("invalid access");
       }
 
@@ -318,7 +257,6 @@ namespace jjson {
             return i->second;
           }
         }
-
         throw std::runtime_error("invalid access");
       }
 
@@ -328,43 +266,49 @@ namespace jjson {
             return i->second;
           }
         }
-
         throw std::runtime_error("invalid access");
       }
 
       bool has(std::string const &key) const {
-        if (get_type() == JsonType::Object) {
-          jObject object = std::get<jObject>(mValue);
-
-          return object.contains(key);
-        }
-
-        return false;
+        auto const *object = std::get_if<jObject>(&mValue);
+        return object && object->contains(key);
       }
-      /**
-       * \brief Returns an object of type T if it exists, or empty otherwise.
-       *
-       * \return type T, if exists.
-       */
+
       template <typename T>
       std::optional<T> get() const {
-        try {
-          T value{};
-
-          json_to(*this, value);
-
-          return value;
-        } catch (...) {
+        if constexpr (std::same_as<T, int>) {
+          if (auto *v = std::get_if<int64_t>(&mValue)) {
+            return static_cast<int>(*v);
+          }
+          return {};
+        } else if constexpr (std::same_as<T, float>) {
+          if (auto *v = std::get_if<double>(&mValue)) {
+            return static_cast<float>(*v);
+          }
+          return {};
+        } else if constexpr (std::same_as<T, std::nullptr_t>) {
+          if (std::holds_alternative<std::nullptr_t>(mValue)) {
+            return nullptr;
+          }
+          return {};
+        } else if constexpr (std::is_same_v<T, int64_t> || std::is_same_v<T, double> ||
+                             std::is_same_v<T, std::string> || std::is_same_v<T, jArray> ||
+                             std::is_same_v<T, jObject> || std::is_same_v<T, bool>) {
+          if (auto *v = std::get_if<T>(&mValue)) {
+            return *v;
+          }
+          return {};
+        } else {
+          try {
+            T value{};
+            json_to(*this, value);
+            return value;
+          } catch (...) {
+            return {};
+          }
         }
-
-        return {};
       }
 
-      /**
-       * \brief Returns an object of type T if it exists, or throw otherwise.
-       *
-       * \return type T, if exists.
-       */
       template <typename T>
       T & get_or_throw() {
         return std::get<T>(mValue);
@@ -375,17 +319,10 @@ namespace jjson {
         return std::get<T>(mValue);
       }
 
-    /**
-       * \brief Dumps the content to string.
-       *
-       */
       std::string dump() const {
         std::ostringstream out;
-
         out << std::boolalpha;
-
-        _dump(*this, out); 
-
+        _dump(*this, out);
         return out.str();
       }
 
@@ -396,63 +333,76 @@ namespace jjson {
     private:
       jValue mValue;
 
-      static void _skip_space(std::istream &is) {
-        while (std::isspace(is.peek())) {
-          is.get();
-        }
-      }
+      static std::optional<Json> _parse(ParseState &ps) {
+        ps.skip_space();
+        int c = ps.peek();
 
-      static Json _read_null(std::istream &is) {
-        if (is.get() == 'n' and is.get() == 'u' and is.get() == 'l' and is.get() == 'l') {
+        if (c == -1) {
+          return Json{};
+        } else if (c == 'n') {
+          return _read_null(ps);
+        } else if (c == 'f' || c == 't') {
+          return _read_bool(ps);
+        } else if (c == '+' || c == '-' || c == '.' || (c >= '0' && c <= '9')) {
+          return _read_number(ps);
+        } else if (c == '"') {
+          auto str = _read_string(ps);
+          if (str) return Json{std::move(str.value())};
           return {};
+        } else if (c == '[') {
+          return _read_array(ps);
+        } else if (c == '{') {
+          return _read_object(ps);
         }
 
-        throw std::runtime_error("unable to parse null value");
+        return {};
       }
 
-      static Json _read_bool(std::istream &is) {
-        if (is.peek() == 'f') {
-          if (is.get() == 'f' and is.get() == 'a' and is.get() == 'l' and is.get() == 's' and is.get() == 'e') {
-            return false;
+      static std::optional<Json> _read_null(ParseState &ps) {
+        if (ps.get() == 'n' && ps.get() == 'u' && ps.get() == 'l' && ps.get() == 'l') {
+          return Json{};
+        }
+        return {};
+      }
+
+      static std::optional<Json> _read_bool(ParseState &ps) {
+        int c = ps.get();
+        if (c == 'f') {
+          if (ps.get() == 'a' && ps.get() == 'l' && ps.get() == 's' && ps.get() == 'e') {
+            return Json{false};
           }
-        } else if (is.peek() == 't') {
-          if (is.get() == 't' and is.get() == 'r' and is.get() == 'u' and is.get() == 'e') {
-            return true;
+        } else if (c == 't') {
+          if (ps.get() == 'r' && ps.get() == 'u' && ps.get() == 'e') {
+            return Json{true};
           }
         }
-
-        throw std::runtime_error("unable to parse bool value");
+        return {};
       }
 
-      static Json _read_number(std::istream &is) {
-        std::ostringstream out;
+      static std::optional<Json> _read_number(ParseState &ps) {
         std::string token;
-        char type = 'u'; // u:unknown, i:int, b:binary, o:octal, h:hex, f:float, c: cientific notation
+        char type = 'u';
         bool first = false;
-        int c = -1;
 
-        while (is) {
-          c = is.peek();
+        while (ps.p < ps.end) {
+          int c = std::tolower(ps.peek());
 
           if (type == 'u') {
-            is.get();
+            ps.get(); // consume the first character
 
             if (c == '0') {
-              c = std::tolower(is.peek());
+              c = std::tolower(ps.peek());
 
               if (c == 'x') {
                 type = 'h';
-
-                is.get();
+                ps.get(); // consume 'x'
               } else if (c == 'b') {
                 type = 'b';
-
-                is.get();
+                ps.get(); // consume 'b'
               } else if (c == '.') {
                 type = 'f';
                 token += '.';
-
-                is.get();
+                ps.get(); // consume '.'
               } else {
                 type = 'o';
                 token += '0';
@@ -462,7 +412,7 @@ namespace jjson {
               token += '.';
             } else if (c == '-') {
               token += '-';
-            } else if (c >= '0' and c <= '9') {
+            } else if (c >= '0' && c <= '9') {
               type = 'i';
               token += static_cast<char>(c);
             } else {
@@ -470,300 +420,293 @@ namespace jjson {
             }
           } else {
             if (type == 'i') {
-              if (c >= '0' and c <= '9') {
+              if (c >= '0' && c <= '9') {
                 token += static_cast<char>(c);
               } else if (c == '.') {
                 type = 'f';
-                token += static_cast<char>(c);
+                token += '.';
               } else {
                 break;
               }
             } else if (type == 'b') {
-              if (c >= '0' and c <= '1') {
+              if (c >= '0' && c <= '1') {
                 token += static_cast<char>(c);
               } else {
                 break;
               }
             } else if (type == 'o') {
-              if (c >= '0' and c <= '7') {
+              if (c >= '0' && c <= '7') {
                 token += static_cast<char>(c);
               } else {
                 break;
               }
             } else if (type == 'h') {
-              if ((c >= '0' and c <= '9') or (c >= 'a' and c <= 'f')) {
+              if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
                 token += static_cast<char>(c);
               } else {
                 break;
               }
             } else if (type == 'f') {
-              if (c >= '0' and c <= '9') {
+              if (c >= '0' && c <= '9') {
                 token += static_cast<char>(c);
               } else if (c == 'e') {
                 type = 'c';
                 first = true;
-                token += static_cast<char>(c);
+                token += 'e';
               } else {
                 break;
               }
             } else if (type == 'c') {
-              if (first == true and (c == '-' or c == '+')) {
+              if (first && (c == '-' || c == '+')) {
                 token += static_cast<char>(c);
-              } else if (c >= '0' and c <= '9') {
+              } else if (c >= '0' && c <= '9') {
                 token += static_cast<char>(c);
+              } else {
+                break;
               }
-                  
               first = false;
             }
 
-            is.get();
-          }
-        }
-          
-        if (c < 0 or c == '}' or c == ']' or c == ',' or std::isspace(c) != 0) {
-          Json result;
-
-          if (type == 'i') {
-            result = static_cast<int64_t>(std::stoll(token, nullptr, 10));
-          } else if (type == 'b') {
-            result = static_cast<int64_t>(std::stoll(token, nullptr, 2));
-          } else if (type == 'o') {
-            result = static_cast<int64_t>(std::stoll(token, nullptr, 8));
-          } else if (type == 'h') {
-            result = static_cast<int64_t>(std::stoll(token, nullptr, 16));
-          } else if (type == 'f') {
-            if (token.front() == '.') {
-              token = '0' + token;
-            }
-
-            if (token.back() == '.') {
-              token += '0';
-            }
-
-            result = std::stod(token, nullptr);
-          } else if (type == 'c') {
-            if (token.back() == 'e') {
-              token += '+';
-            }
-
-            if (token.back() == '-' or token.back() == '+') {
-              token += '0';
-            }
-
-            std::string::size_type index = token.find("e");
-            std::string baseStr = token.substr(0, index);
-            std::string multStr = token.substr(index + 1);
-
-            double base = std::stod(baseStr, nullptr);
-            double mult = static_cast<int64_t>(std::stoll(multStr, nullptr, 10));
-
-            result = static_cast<double>(base * std::pow(10, mult));
-          }
-
-          return result;
-        }
-
-        throw std::runtime_error("unable to parse number value");
-      }
-
-      static std::string _read_string(std::istream &is) {
-        std::stringstream out;
-        bool skip = false;
-
-        is.get(); // remove first '"'
-
-        while (is) {
-          int c = is.get();
-
-          if (c == '"' and skip == false) {
-            return out.str();
-          }
-
-          if (c == '\\' and skip == false) {
-            skip = true;
-          } else {
-            out << static_cast<char>(c);
-
-            skip = false;
+            ps.get();
           }
         }
 
-        throw std::runtime_error("unable to parse string value");
-      }
+        int terminator = ps.peek();
 
-      static Json _read_array(std::istream &is) {
-        jArray result{};
- 
-        is.get(); // remove first '['
-
-        while (is) {
-          int c = is.peek();
-
-          if (std::isspace(c)) {
-            _skip_space(is);
-          } else if (c == ']') {
-            is.get();
-
-            return result;
-          } else if (c == ',') {
-            is.get();
-          } else {
-            if (std::optional<Json> &&valueOpt = parse(is); valueOpt) {
-              result.push_back(*valueOpt);
-            } else {
-              is.get(); // skip char if no byte was read
-            }
-          }
+        if (type == 'u' || (terminator != -1 && terminator != '}' && terminator != ']' &&
+            terminator != ',' && !std::isspace(terminator))) {
+          return {};
         }
 
-        throw std::runtime_error("unable to parse array");
-      }
+        Json result;
 
-      static Json _read_object(std::istream &is) {
-        jObject result{};
- 
-        is.get(); // remove first '['
-
-        while (is) {
-          int c = is.peek();
-
-          if (std::isspace(c)) {
-            _skip_space(is);
-          } else if (c == '}') {
-            is.get();
-
-            return result;
-          } else if (c == ',') {
-            is.get();
-          } else {
-            std::string key = _read_string(is);
-
-            if (key.empty() == true) {
-              throw std::runtime_error("unable to find object key");
-            }
-
-            _skip_space(is);
-
-            if (!is) {
-              throw std::runtime_error("unable to find object separator");
-            }
-
-            c = is.get();
-
-            if (c != ':') {
-              throw std::runtime_error("invalid object separator");
-            }
-
-            if (std::optional<Json> &&valueOpt = parse(is); valueOpt) {
-              std::swap(result[key], *valueOpt);
-            } else {
-              throw std::runtime_error("unable to find object value");
-            }
+        if (type == 'i') {
+          int64_t v = 0;
+          std::from_chars(token.data(), token.data() + token.size(), v);
+          result = v;
+        } else if (type == 'b') {
+          int64_t v = 0;
+          std::from_chars(token.data(), token.data() + token.size(), v, 2);
+          result = v;
+        } else if (type == 'o') {
+          int64_t v = 0;
+          std::from_chars(token.data(), token.data() + token.size(), v, 8);
+          result = v;
+        } else if (type == 'h') {
+          int64_t v = 0;
+          std::from_chars(token.data(), token.data() + token.size(), v, 16);
+          result = v;
+        } else if (type == 'f') {
+          if (token.front() == '.') {
+            token = '0' + token;
           }
+          if (token.back() == '.') {
+            token += '0';
+          }
+          double v = 0;
+          std::from_chars(token.data(), token.data() + token.size(), v);
+          result = v;
+        } else if (type == 'c') {
+          if (token.back() == 'e') {
+            token += '+';
+          }
+          if (token.back() == '-' || token.back() == '+') {
+            token += '0';
+          }
+
+          auto epos = token.find('e');
+          std::string baseStr = token.substr(0, epos);
+          std::string multStr = token.substr(epos + 1);
+
+          double base = 0;
+          int64_t mult = 0;
+          std::from_chars(baseStr.data(), baseStr.data() + baseStr.size(), base);
+          std::from_chars(multStr.data(), multStr.data() + multStr.size(), mult);
+
+          result = base * std::pow(10, mult);
         }
 
         return result;
       }
 
+      static std::optional<std::string> _read_string(ParseState &ps) {
+        ps.get(); // skip leading '"'
+        std::string result;
+        bool escape = false;
+
+        while (ps.p < ps.end) {
+          int c = ps.get();
+
+          if (c == '"' && !escape) {
+            return result;
+          }
+
+          if (c == '\\' && !escape) {
+            escape = true;
+          } else {
+            result += static_cast<char>(c);
+            escape = false;
+          }
+        }
+
+        return {};
+      }
+
+      static std::optional<Json> _read_array(ParseState &ps) {
+        ps.get(); // skip '['
+        jArray result;
+
+        result.reserve(32);
+
+        while (ps.p < ps.end) {
+          ps.skip_space();
+          int c = ps.peek();
+
+          if (c == ']') {
+            ps.get();
+            return Json{std::move(result)};
+          } else if (c == ',') {
+            ps.get();
+          } else {
+            auto valueOpt = _parse(ps);
+            if (valueOpt) {
+              result.push_back(std::move(valueOpt.value()));
+            } else {
+              return {};
+            }
+          }
+        }
+
+        return {};
+      }
+
+      static std::optional<Json> _read_object(ParseState &ps) {
+        ps.get(); // skip '{'
+        jObject result;
+
+        while (ps.p < ps.end) {
+          ps.skip_space();
+          int c = ps.peek();
+
+          if (c == '}') {
+            ps.get();
+            return Json{std::move(result)};
+          } else if (c == ',') {
+            ps.get();
+          } else {
+            auto keyStr = _read_string(ps);
+            if (!keyStr || keyStr->empty()) {
+              return {};
+            }
+
+            ps.skip_space();
+            if (ps.p >= ps.end || ps.get() != ':') {
+              return {};
+            }
+
+            auto valueOpt = _parse(ps);
+            if (!valueOpt) {
+              return {};
+            }
+
+            result.emplace(std::move(keyStr.value()), std::move(valueOpt.value()));
+          }
+        }
+
+        return {};
+      }
+
       void _dump(Json const &value, std::ostringstream &out) const {
-        if (value.get_type() == JsonType::Null) {
-          out << "null";
-        } else if (value.get_type() == JsonType::Bool) {
-          out << value.get_or_throw<bool>();
-        } else if (value.get_type() == JsonType::Integer) {
-          out << value.get_or_throw<int64_t>();
-        } else if (value.get_type() == JsonType::Decimal) {
-          double d = value.get_or_throw<double>();
-
-          out << d;
-
-          if ((d - static_cast<int64_t>(d)) == 0) {
-            out << ".0";
-          }
-        } else if (value.get_type() == JsonType::Text) {
-          out << std::quoted(value.get_or_throw<std::string>());
-        } else if (value.get_type() == JsonType::Array) {
-          auto const &array = value.get_or_throw<jArray>();
-
-          out << "[";
-
-          bool first{true};
-
-          for (auto const &i : array) {
-            if (first == false) {
-              out << ",";
+        switch (value.get_type()) {
+          case JsonType::Null:
+            out << "null";
+            break;
+          case JsonType::Bool:
+            out << value.get_or_throw<bool>();
+            break;
+          case JsonType::Integer:
+            out << value.get_or_throw<int64_t>();
+            break;
+          case JsonType::Decimal: {
+            double d = value.get_or_throw<double>();
+            out << d;
+            if (d == static_cast<int64_t>(d)) {
+              out << ".0";
             }
-
-            first = false;
-
-            _dump(i, out);
+            break;
           }
-
-          out << "]";
-        } else if (value.get_type() == JsonType::Object) {
-          jObject object = value.get_or_throw<jObject>();
-
-          out << "{";
-
-          bool first{true};
-
-          for (auto &i : object) {
-            if (first == false) {
-              out << ",";
+          case JsonType::Text:
+            out << std::quoted(value.get_or_throw<std::string>());
+            break;
+          case JsonType::Array: {
+            auto const &array = value.get_or_throw<jArray>();
+            out << "[";
+            bool first = true;
+            for (auto const &i : array) {
+              if (!first) out << ",";
+              first = false;
+              _dump(i, out);
             }
-
-            first = false;
-
-            out << std::quoted(i.first) << ":";
-            
-            _dump(i.second, out);
+            out << "]";
+            break;
           }
-
-          out << "}";
+          case JsonType::Object: {
+            auto const &object = value.get_or_throw<jObject>();
+            out << "{";
+            bool first = true;
+            for (auto const &[k, v] : object) {
+              if (!first) out << ",";
+              first = false;
+              out << std::quoted(k) << ":";
+              _dump(v, out);
+            }
+            out << "}";
+            break;
+          }
         }
       }
 
       friend bool operator == (Json const &lhs, Json const &rhs) {
-        if (lhs.mValue.index() == rhs.mValue.index()) {
-          if (std::holds_alternative<std::nullptr_t>(lhs.mValue) == true) {
-            return true;
-          } else if (std::holds_alternative<bool>(lhs.mValue) == true) {
-            return std::get<bool>(lhs.mValue) == std::get<bool>(rhs.mValue);
-          } else if (std::holds_alternative<int64_t>(lhs.mValue) == true) {
-            return std::get<int64_t>(lhs.mValue) == std::get<int64_t>(rhs.mValue);
-          } else if (std::holds_alternative<double>(lhs.mValue) == true) {
-            return std::get<double>(lhs.mValue) == std::get<double>(rhs.mValue);
-          } else if (std::holds_alternative<jArray>(lhs.mValue) == true) {
-            auto &lhsValue = std::get<jArray>(lhs.mValue);
-            auto &rhsValue = std::get<jArray>(rhs.mValue);
-
-            return std::equal(lhsValue.begin(), lhsValue.end(), rhsValue.begin());
-          } else if (std::holds_alternative<jObject>(lhs.mValue) == true) {
-            auto &lhsValue = std::get<jObject>(lhs.mValue);
-            auto &rhsValue = std::get<jObject>(rhs.mValue);
-
-            return std::equal(lhsValue.begin(), lhsValue.end(), rhsValue.begin());
-          }
+        if (lhs.mValue.index() != rhs.mValue.index()) {
+          return false;
         }
 
-        return false;
+        switch (lhs.mValue.index()) {
+          case 0: return true;
+          case 1: return std::get<bool>(lhs.mValue) == std::get<bool>(rhs.mValue);
+          case 2: return std::get<int64_t>(lhs.mValue) == std::get<int64_t>(rhs.mValue);
+          case 3: return std::get<double>(lhs.mValue) == std::get<double>(rhs.mValue);
+          case 4: return std::get<std::string>(lhs.mValue) == std::get<std::string>(rhs.mValue);
+          case 5: {
+            auto &a = std::get<jArray>(lhs.mValue);
+            auto &b = std::get<jArray>(rhs.mValue);
+            return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
+          }
+          case 6: {
+            auto &a = std::get<jObject>(lhs.mValue);
+            auto &b = std::get<jObject>(rhs.mValue);
+            return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
+          }
+          default: return false;
+        }
       }
 
       friend std::ostream & operator << (std::ostream &out, Json const &value) {
         out << value.dump();
-
         return out;
       }
 
   };
 
-  // INFO:: T is a std::vector, this method needs the specialization that following
   template <typename T>
   void json_to(jjson::Json const &json, T &out) {
     auto const &values = std::get<jArray>(json.get_value());
 
-    for (auto &value: values) {
-      out.push_back(value.get<typename T::value_type>().value());
+    for (auto const &value: values) {
+      auto item = value.get<typename T::value_type>();
+      if (item) {
+        out.emplace_back(std::move(item.value()));
+      }
     }
   }
 
