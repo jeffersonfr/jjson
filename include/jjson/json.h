@@ -98,12 +98,12 @@ namespace jjson {
       }
 
       template <JsonTypeConcept T>
-      Json(T &&value)
+      Json(T &&value) noexcept
         : mValue{std::move(value)} {
       }
 
       template <JsonTypeConcept ...Args>
-      Json(Args &&...args)
+      Json(Args &&...args) noexcept
         : mValue{jArray{std::move(args)...}} {
       }
 
@@ -111,7 +111,7 @@ namespace jjson {
         : mValue{value.mValue} {
       }
 
-      Json(Json &&value)
+      Json(Json &&value) noexcept
         : mValue{std::move(value.mValue)} {
       }
 
@@ -186,7 +186,7 @@ namespace jjson {
       }
 
       template <JsonTypeConcept T>
-      Json & operator = (T &&value) {
+      Json & operator = (T &&value) noexcept {
         this->mValue = std::move(value);
         return *this;
       }
@@ -196,7 +196,7 @@ namespace jjson {
         return *this;
       }
 
-      Json & operator = (Json &&value) {
+      Json & operator = (Json &&value) noexcept{
         mValue = std::move(value.mValue);
         return *this;
       }
