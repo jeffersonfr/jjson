@@ -346,7 +346,7 @@ TEST(JsonSuite, Invalid) {
   ASSERT_FALSE(Json::parse("["));
   ASSERT_FALSE(Json::parse("]"));
   ASSERT_FALSE(Json::parse("{[]"));
-  // ASSERT_FALSE(Json::parse("[]}"));
+  ASSERT_FALSE(Json::parse("[]}"));
   ASSERT_FALSE(Json::parse("'"));
   ASSERT_FALSE(Json::parse("\""));
   ASSERT_FALSE(Json::parse("1\""));

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 #include <istream>
 #include <iterator>
 #include <unordered_map>
@@ -80,7 +81,13 @@ namespace jjson {
 
       static std::optional<Json> parse(std::string_view data) {
         ParseState ps{data.data(), data.data() + data.size()};
-        return _parse(ps);
+        auto result = _parse(ps);
+
+        if (bool hasPadding = std::all_of(ps.p, ps.end, [](unsigned char c){ return std::isblank(c) or std::isspace(c); }); !hasPadding) {
+          return {};
+        }
+
+        return result;
       }
 
       static std::optional<Json> parse(std::istream &is) {
