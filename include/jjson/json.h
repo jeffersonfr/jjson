@@ -354,7 +354,11 @@ namespace jjson {
           return _read_number(ps);
         } else if (c == '"') {
           auto str = _read_string(ps);
-          if (str) return Json{std::move(str.value())};
+          if (str) {
+            auto result = Json{std::move(*str)};
+            delete str;
+            return result;
+          }
           return {};
         } else if (c == '[') {
           return _read_array(ps);
@@ -536,10 +540,11 @@ namespace jjson {
         return result;
       }
 
-      static std::optional<std::string> _read_string(ParseState &ps) {
-        ps.get(); // skip leading '"'
-        std::string result;
+      static std::string * _read_string(ParseState &ps) {
+        auto result = new std::string{};
         bool escape = false;
+
+        ps.get(); // skip leading '"'
 
         while (ps.p < ps.end) {
           int c = ps.get();
@@ -551,19 +556,20 @@ namespace jjson {
           if (c == '\\' && !escape) {
             escape = true;
           } else {
-            result += static_cast<char>(c);
+            *result += static_cast<char>(c);
             escape = false;
           }
         }
 
-        return {};
+        delete result;;
+
+        return nullptr;
       }
 
       static std::optional<Json> _read_array(ParseState &ps) {
-        ps.get(); // skip '['
         jArray result;
 
-        result.reserve(32);
+        ps.get(); // skip '['
 
         while (ps.p < ps.end) {
           ps.skip_space();
@@ -571,15 +577,12 @@ namespace jjson {
 
           if (c == ']') {
             ps.get();
-            return Json{std::move(result)};
+            return std::optional{std::move(result)};
           } else if (c == ',') {
             ps.get();
           } else {
-            auto valueOpt = _parse(ps);
-            if (valueOpt) {
-              result.push_back(std::move(valueOpt.value()));
-            } else {
-              return {};
+            if (auto valueOpt = _parse(ps); valueOpt) {
+              result.emplace_back(std::move(valueOpt.value()));
             }
           }
         }
@@ -588,8 +591,9 @@ namespace jjson {
       }
 
       static std::optional<Json> _read_object(ParseState &ps) {
-        ps.get(); // skip '{'
         jObject result;
+
+        ps.get(); // skip '{'
 
         while (ps.p < ps.end) {
           ps.skip_space();
@@ -597,7 +601,7 @@ namespace jjson {
 
           if (c == '}') {
             ps.get();
-            return Json{std::move(result)};
+            return std::optional{std::move(result)};
           } else if (c == ',') {
             ps.get();
           } else {
@@ -616,7 +620,9 @@ namespace jjson {
               return {};
             }
 
-            result.emplace(std::move(keyStr.value()), std::move(valueOpt.value()));
+            result.emplace(std::move(*keyStr), std::move(valueOpt.value()));
+
+            delete keyStr;
           }
         }
 
